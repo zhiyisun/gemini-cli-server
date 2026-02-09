@@ -2,11 +2,13 @@
 
 __version__ = "0.2.0"
 
-from .process import GeminiProcess, GeminiProcessError
 from .base_process import BaseCLIProcess, CLIProcessError
 from .gemini_process import GeminiCLIProcess
 from .qwen_process import QwenCodeProcess
 from .client import GeminiClient, OpenAICompatibleClient, GeminiClientError
+
+GeminiProcess = GeminiCLIProcess
+GeminiProcessError = CLIProcessError
 
 __all__ = [
     "GeminiProcess",

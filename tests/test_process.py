@@ -1,8 +1,11 @@
 """Unit tests for Gemini CLI process manager."""
 import json
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
-from ai_cli_server.process import GeminiCLIProcess, CLIProcessError
+
+import pytest
+
+from ai_cli_server.base_process import CLIProcessError
+from ai_cli_server.gemini_process import GeminiCLIProcess
 
 
 @pytest.fixture

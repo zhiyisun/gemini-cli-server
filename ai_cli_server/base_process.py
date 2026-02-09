@@ -1,40 +1,65 @@
-"""Gemini CLI process manager for SSE server."""
+"""Base CLI process manager for SSE server."""
 import asyncio
 import json
 import logging
 import os
+import time
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, List
 
 # Setup logging
 logger = logging.getLogger(__name__)
 
 
-class GeminiProcessError(Exception):
-    """Exception raised for Gemini process errors."""
+class CLIProcessError(Exception):
+    """Exception raised for CLI process errors."""
     pass
 
 
-class GeminiProcess:
-    """Manages a persistent Gemini CLI process with stdin/stdout communication."""
+class BaseCLIProcess(ABC):
+    """Base class for managing CLI processes with stdin/stdout communication."""
 
     def __init__(self, cli_path: Optional[str] = None):
         """
-        Initialize the Gemini CLI process manager.
+        Initialize the CLI process manager.
 
         Args:
-            cli_path: Path to the Gemini CLI executable. Defaults to bundled version.
+            cli_path: Path to the CLI executable. Defaults to bundled version.
         """
         if cli_path is None:
-            # Default to gemini-cli submodule
-            base_dir = Path(__file__).parent.parent
-            cli_path = str(base_dir / "gemini-cli" / "bundle" / "gemini.js")
+            cli_path = self._get_default_cli_path()
         
         self.cli_path = cli_path
         self._process: Optional[asyncio.subprocess.Process] = None
         self._session_id: Optional[str] = None
         self._event_queue: asyncio.Queue = asyncio.Queue()
         self._reader_task: Optional[asyncio.Task] = None
+
+    @abstractmethod
+    def _get_default_cli_path(self) -> str:
+        """Get the default CLI path for this implementation."""
+        pass
+
+    @abstractmethod
+    def _get_cli_executable_args(self) -> List[str]:
+        """Get the executable and base arguments to start the CLI."""
+        pass
+
+    @abstractmethod
+    def _get_stream_args(self) -> List[str]:
+        """Get arguments for stream-json output mode."""
+        pass
+
+    @abstractmethod
+    def _get_auto_approve_args(self) -> List[str]:
+        """Get arguments for auto-approval mode."""
+        pass
+
+    @abstractmethod
+    def _get_prompt_args(self, prompt: str) -> List[str]:
+        """Get arguments for running a single prompt."""
+        pass
 
     @property
     def is_running(self) -> bool:
@@ -50,7 +75,7 @@ class GeminiProcess:
 
     async def _background_reader(self) -> None:
         """
-        Background task to read events from the Gemini CLI process.
+        Background task to read events from the CLI process.
         This keeps the process alive by continuously reading from stdout.
         """
         logger.info("Background reader started")
@@ -87,22 +112,25 @@ class GeminiProcess:
 
     async def start(self) -> None:
         """
-        Start the Gemini CLI process.
+        Start the CLI process.
 
         Raises:
-            GeminiProcessError: If process is already running or cannot be started.
+            CLIProcessError: If process is already running or cannot be started.
         """
         if self.is_running:
-            raise GeminiProcessError("Process is already running")
+            raise CLIProcessError("Process is already running")
 
         try:
-            logger.info(f"Starting Gemini CLI from {self.cli_path}")
-            # Start gemini CLI with stream-json output in auto-approval mode
+            logger.info(f"Starting CLI from {self.cli_path}")
+            
+            # Build command arguments
+            cmd_args = self._get_cli_executable_args()
+            cmd_args.extend(self._get_stream_args())
+            cmd_args.extend(self._get_auto_approve_args())
+            
+            # Start CLI process
             self._process = await asyncio.create_subprocess_exec(
-                "node",
-                self.cli_path,
-                "--output-format", "stream-json",
-                "--yolo",  # Auto-approve all actions to avoid blocking
+                *cmd_args,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -116,18 +144,18 @@ class GeminiProcess:
             logger.info(f"Process running: {self.is_running}")
 
         except FileNotFoundError:
-            logger.error(f"Gemini CLI not found at {self.cli_path}")
-            raise GeminiProcessError(f"Gemini CLI not found at {self.cli_path}")
-        except GeminiProcessError:
+            logger.error(f"CLI not found at {self.cli_path}")
+            raise CLIProcessError(f"CLI not found at {self.cli_path}")
+        except CLIProcessError:
             # Re-raise our custom errors
             raise
         except Exception as e:
             logger.error(f"Failed to start process: {e}")
-            raise GeminiProcessError(f"Failed to start process: {e}")
+            raise CLIProcessError(f"Failed to start process: {e}")
 
     async def stop(self, timeout: float = 5.0) -> None:
         """
-        Stop the Gemini CLI process.
+        Stop the CLI process.
 
         Args:
             timeout: Maximum time to wait for process termination.
@@ -160,7 +188,7 @@ class GeminiProcess:
         Read events until we get the init event with session ID.
 
         Raises:
-            GeminiProcessError: If we can't read the init event.
+            CLIProcessError: If we can't read the init event.
         """
         try:
             async for event in self.read_events():
@@ -169,11 +197,11 @@ class GeminiProcess:
                     return
                 # Also check for error events
                 if event.get("type") == "error":
-                    raise GeminiProcessError(f"Init error: {event.get('error')}")
-        except GeminiProcessError:
+                    raise CLIProcessError(f"Init error: {event.get('error')}")
+        except CLIProcessError:
             raise
         except Exception as e:
-            raise GeminiProcessError(f"Failed to read init event: {e}")
+            raise CLIProcessError(f"Failed to read init event: {e}")
 
     async def send_prompt(self, prompt: str) -> None:
         """
@@ -183,7 +211,7 @@ class GeminiProcess:
             prompt: The prompt text to send.
 
         Raises:
-            GeminiProcessError: If process is not running.
+            CLIProcessError: If process is not running.
         """
         if not self.is_running:
             logger.warning(
@@ -191,7 +219,7 @@ class GeminiProcess:
                 self.is_running,
                 self._process.returncode if self._process else "N/A",
             )
-            raise GeminiProcessError("Process is not running")
+            raise CLIProcessError("Process is not running")
 
         # Write prompt followed by newline
         logger.info(f"Sending prompt: {prompt[:50]}...")
@@ -209,23 +237,45 @@ class GeminiProcess:
         Yields:
             Parsed JSON events as dictionaries.
         """
+        start_time = time.monotonic()
+
         try:
+            async for event in self._run_stream_json_prompt(prompt):
+                yield event
+            return
+        except CLIProcessError as e:
+            if not self._is_stream_args_error(str(e)):
+                raise
+
+        async for event in self._run_plain_prompt(prompt, start_time):
+            yield event
+
+    def _is_stream_args_error(self, message: str) -> bool:
+        """Check if error indicates unsupported stream-json arguments."""
+        lower_msg = message.lower()
+        if "output-format" in lower_msg or "outputformat" in lower_msg:
+            if "unknown" in lower_msg or "unrecognized" in lower_msg:
+                return True
+        return False
+
+    async def _run_stream_json_prompt(self, prompt: str) -> AsyncIterator[dict]:
+        """Run prompt using stream-json output and yield parsed events."""
+        try:
+            cmd_args = self._get_cli_executable_args()
+            cmd_args.extend(self._get_prompt_args(prompt))
+            cmd_args.extend(self._get_stream_args())
+            cmd_args.extend(self._get_auto_approve_args())
+
             process = await asyncio.create_subprocess_exec(
-                "node",
-                self.cli_path,
-                "-p",
-                prompt,
-                "--output-format",
-                "stream-json",
-                "--yolo",
+                *cmd_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=os.environ.copy(),
             )
         except FileNotFoundError:
-            raise GeminiProcessError(f"Gemini CLI not found at {self.cli_path}")
+            raise CLIProcessError(f"CLI not found at {self.cli_path}")
         except Exception as e:
-            raise GeminiProcessError(f"Failed to start process: {e}")
+            raise CLIProcessError(f"Failed to start process: {e}")
 
         try:
             while True:
@@ -243,9 +293,70 @@ class GeminiProcess:
             if process.returncode and process.returncode != 0:
                 stderr_data = await process.stderr.read()
                 stderr_text = stderr_data.decode("utf-8", errors="replace").strip()
-                raise GeminiProcessError(
-                    f"Gemini CLI exited with code {process.returncode}: {stderr_text}"
+                raise CLIProcessError(
+                    f"CLI exited with code {process.returncode}: {stderr_text}"
                 )
+        finally:
+            if process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+
+    async def _run_plain_prompt(self, prompt: str, start_time: float) -> AsyncIterator[dict]:
+        """Run prompt without stream-json and yield synthesized events."""
+        try:
+            cmd_args = self._get_cli_executable_args()
+            cmd_args.extend(self._get_prompt_args(prompt))
+            cmd_args.extend(self._get_auto_approve_args())
+
+            process = await asyncio.create_subprocess_exec(
+                *cmd_args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=os.environ.copy(),
+            )
+        except FileNotFoundError:
+            raise CLIProcessError(f"CLI not found at {self.cli_path}")
+        except Exception as e:
+            raise CLIProcessError(f"Failed to start process: {e}")
+
+        try:
+            output_chunks: List[str] = []
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="replace")
+                if not text:
+                    continue
+                output_chunks.append(text)
+                yield {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": text,
+                }
+
+            await process.wait()
+            if process.returncode and process.returncode != 0:
+                stderr_data = await process.stderr.read()
+                stderr_text = stderr_data.decode("utf-8", errors="replace").strip()
+                raise CLIProcessError(
+                    f"CLI exited with code {process.returncode}: {stderr_text}"
+                )
+
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            yield {
+                "type": "result",
+                "duration_ms": duration_ms,
+                "stats": {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                },
+                "result": "".join(output_chunks).strip(),
+            }
         finally:
             if process.returncode is None:
                 process.terminate()
@@ -263,10 +374,10 @@ class GeminiProcess:
             Parsed JSON events as dictionaries.
 
         Raises:
-            GeminiProcessError: If process is not running.
+            CLIProcessError: If process is not running.
         """
         if not self.is_running:
-            raise GeminiProcessError("Process is not running")
+            raise CLIProcessError("Process is not running")
 
         while self.is_running:
             try:

@@ -154,7 +154,7 @@ def _format_messages_as_prompt(messages: Iterable[Dict[str, Any]]) -> str:
 
 
 def _extract_usage_from_result(result_event: Dict[str, Any]) -> Dict[str, int]:
-    """Best-effort mapping of Gemini stats to OpenAI usage fields."""
+    """Best-effort mapping of stats to OpenAI usage fields (handles both Gemini and Qwen)."""
     stats = result_event.get("stats", {})
     input_tokens = stats.get("input_tokens", 0)
     output_tokens = stats.get("output_tokens", 0)
@@ -164,6 +164,22 @@ def _extract_usage_from_result(result_event: Dict[str, Any]) -> Dict[str, int]:
         "completion_tokens": output_tokens,
         "total_tokens": total_tokens,
     }
+
+
+def _extract_content_from_event(event: Dict[str, Any]) -> Optional[str]:
+    """Extract content from event, handling both Gemini and Qwen formats."""
+    # Gemini format: type="message", role="assistant", content field
+    if event.get("type") == "message" and event.get("role") == "assistant":
+        return event.get("content")
+    # Qwen format: type="assistant", message.content
+    elif event.get("type") == "assistant":
+        if isinstance(event.get("message"), dict):
+            msg_content = event.get("message", {}).get("content", [])
+            if isinstance(msg_content, list):
+                for item in msg_content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        return item.get("text")
+    return None
 
 
 class OpenAICompatibleClient:
@@ -204,8 +220,10 @@ class _Completions:
         content_parts: List[str] = []
         usage: Dict[str, int] = {}
         for event in self._gemini.chat(prompt):
-            if event.get("type") == "message" and event.get("role") == "assistant":
-                content_parts.append(event.get("content", ""))
+            # Extract content from both Gemini and Qwen formats
+            content = _extract_content_from_event(event)
+            if content:
+                content_parts.append(content)
             elif event.get("type") == "result":
                 usage = _extract_usage_from_result(event)
 
@@ -231,8 +249,10 @@ class _Completions:
         sent_role = False
 
         for event in self._gemini.chat(prompt):
-            if event.get("type") == "message" and event.get("role") == "assistant":
-                delta: Dict[str, Any] = {"content": event.get("content", "")}
+            # Extract content from both Gemini and Qwen formats
+            content = _extract_content_from_event(event)
+            if content:
+                delta: Dict[str, Any] = {"content": content}
                 if not sent_role:
                     delta["role"] = "assistant"
                     sent_role = True

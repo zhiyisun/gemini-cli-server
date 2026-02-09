@@ -3,16 +3,16 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gemini-cli-server"
-version = "0.1.0"
-description = "HTTP Server/Client wrapper for Google Gemini CLI with SSE streaming"
+name = "ai-cli-server"
+version = "0.2.0"
+description = "HTTP Server/Client wrapper for AI CLIs (Gemini CLI, Qwen Code) with SSE streaming"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Gemini CLI Server Contributors"}
+    {name = "AI CLI Server Contributors"}
 ]
-keywords = ["gemini", "cli", "server", "sse", "streaming", "api", "openai-compatible"]
+keywords = ["ai", "cli", "server", "sse", "streaming", "api", "openai-compatible", "gemini", "qwen"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -41,24 +41,24 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/google-gemini/gemini-cli-server"
-Repository = "https://github.com/google-gemini/gemini-cli-server"
-Issues = "https://github.com/google-gemini/gemini-cli-server/issues"
-Documentation = "https://github.com/google-gemini/gemini-cli-server#readme"
+Homepage = "https://github.com/zhiyisun/gemini-cli-server"
+Repository = "https://github.com/zhiyisun/gemini-cli-server"
+Issues = "https://github.com/zhiyisun/gemini-cli-server/issues"
+Documentation = "https://github.com/zhiyisun/gemini-cli-server#readme"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["gemini_cli_server*"]
+include = ["ai_cli_server*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --cov=gemini_cli_server --cov-report=term-missing"
+addopts = "-v --cov=ai_cli_server --cov-report=term-missing"
 
 [tool.coverage.run]
-source = ["gemini_cli_server"]
+source = ["ai_cli_server"]
 omit = ["tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]

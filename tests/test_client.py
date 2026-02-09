@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import Mock, patch
 import httpx
-from gemini_cli_server.client import (
+from ai_cli_server.client import (
     GeminiClient,
     GeminiClientError,
     OpenAICompatibleClient,

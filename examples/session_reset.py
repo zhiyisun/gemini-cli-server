@@ -1,5 +1,5 @@
 """Example: Session behavior with OpenAI-compatible client."""
-from gemini_cli_server.client import OpenAICompatibleClient
+from ai_cli_server.client import OpenAICompatibleClient
 
 
 def main():

@@ -1,5 +1,5 @@
 """Example: Error handling and recovery (OpenAI-compatible)."""
-from gemini_cli_server.client import OpenAICompatibleClient, GeminiClientError
+from ai_cli_server.client import OpenAICompatibleClient, GeminiClientError
 
 
 def main():

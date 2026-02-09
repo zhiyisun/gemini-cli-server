@@ -3,7 +3,7 @@ import pytest
 from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch
-from gemini_cli_server.server import app
+from ai_cli_server.server import app
 
 
 def _dummy_event_source_response(event_generator):
@@ -20,7 +20,7 @@ def _dummy_event_source_response(event_generator):
 
 
 class _DummyProcess:
-    """Dummy GeminiProcess for per-request tests."""
+    """Dummy GeminiCLIProcess for per-request tests."""
 
     def __init__(self, cli_path=None, events=None):
         self.cli_path = cli_path
@@ -82,8 +82,8 @@ class TestChatEndpoint:
             created.append(proc)
             return proc
 
-        with patch("gemini_cli_server.server.GeminiProcess", side_effect=factory), patch(
-            "gemini_cli_server.server.EventSourceResponse",
+        with patch("ai_cli_server.server.GeminiCLIProcess", side_effect=factory), patch(
+            "ai_cli_server.server.EventSourceResponse",
             side_effect=_dummy_event_source_response,
         ):
             client = TestClient(app)
@@ -96,9 +96,9 @@ class TestChatEndpoint:
     def test_chat_resets_if_requested(self):
         """Should reset session if reset flag is true."""
         with patch(
-            "gemini_cli_server.server.EventSourceResponse",
+            "ai_cli_server.server.EventSourceResponse",
             side_effect=_dummy_event_source_response,
-        ), patch("gemini_cli_server.server.GeminiProcess", side_effect=_DummyProcess):
+        ), patch("ai_cli_server.server.GeminiCLIProcess", side_effect=_DummyProcess):
             client = TestClient(app)
 
             response = client.post("/chat", json={"prompt": "Hello", "reset": True})
@@ -113,8 +113,8 @@ class TestChatEndpoint:
             created.append(proc)
             return proc
 
-        with patch("gemini_cli_server.server.GeminiProcess", side_effect=factory), patch(
-            "gemini_cli_server.server.EventSourceResponse",
+        with patch("ai_cli_server.server.GeminiCLIProcess", side_effect=factory), patch(
+            "ai_cli_server.server.EventSourceResponse",
             side_effect=_dummy_event_source_response,
         ):
             client = TestClient(app)
@@ -132,19 +132,20 @@ class TestServerLifecycle:
     @pytest.mark.asyncio
     async def test_startup_validates_cli_path(self, monkeypatch):
         """Should validate configured CLI path on startup."""
-        monkeypatch.setenv("GEMINI_CLI_PATH", "/fake/gemini.js")
+        monkeypatch.setenv("CLI_PATH", "/fake/gemini.js")
+        monkeypatch.setenv("CLI_TYPE", "gemini")
         with patch("os.path.exists", return_value=True):
-            from gemini_cli_server import server
+            from ai_cli_server import server
             await server.startup_event()
 
             assert server.cli_path == "/fake/gemini.js"
 
     @pytest.mark.asyncio
     async def test_shutdown_stops_process(self):
-        """Should stop Gemini process on shutdown."""
+        """Should stop CLI process on shutdown."""
         proc = AsyncMock()
-        with patch("gemini_cli_server.server.gemini_process", proc):
-            from gemini_cli_server.server import shutdown_event
+        with patch("ai_cli_server.server.cli_process", proc):
+            from ai_cli_server.server import shutdown_event
             await shutdown_event()
 
             proc.stop.assert_called_once()

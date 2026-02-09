@@ -1,5 +1,5 @@
 """Example: Monitoring tool execution (OpenAI-compatible)."""
-from gemini_cli_server.client import OpenAICompatibleClient
+from ai_cli_server.client import OpenAICompatibleClient
 
 
 def main():

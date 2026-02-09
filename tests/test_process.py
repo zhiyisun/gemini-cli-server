@@ -2,7 +2,7 @@
 import json
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
-from gemini_cli_server.process import GeminiProcess, GeminiProcessError
+from ai_cli_server.process import GeminiCLIProcess, CLIProcessError
 
 
 @pytest.fixture
@@ -22,34 +22,34 @@ def mock_process():
     return process
 
 
-class TestGeminiProcessInit:
-    """Test GeminiProcess initialization."""
+class TestGeminiCLIProcessInit:
+    """Test GeminiCLIProcess initialization."""
 
     def test_init_default_cli_path(self):
         """Should use default CLI path when not specified."""
-        proc = GeminiProcess()
+        proc = GeminiCLIProcess()
         assert proc.cli_path.endswith("gemini-cli/bundle/gemini.js")
 
     def test_init_custom_cli_path(self):
         """Should use custom CLI path when specified."""
         custom_path = "/custom/path/gemini.js"
-        proc = GeminiProcess(cli_path=custom_path)
+        proc = GeminiCLIProcess(cli_path=custom_path)
         assert proc.cli_path == custom_path
 
     def test_init_not_started(self):
         """Should not be started initially."""
-        proc = GeminiProcess()
+        proc = GeminiCLIProcess()
         assert not proc.is_running
 
 
-class TestGeminiProcessStart:
+class TestGeminiCLIProcessStart:
     """Test starting the Gemini CLI process."""
 
     @pytest.mark.asyncio
     async def test_start_success(self, mock_process):
         """Should start process with correct arguments."""
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
 
             assert proc.is_running
@@ -59,7 +59,7 @@ class TestGeminiProcessStart:
     async def test_start_with_stream_json_flag(self, mock_process):
         """Should include --output-format stream-json flag."""
         with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
 
             # Check that stream-json flag was passed
@@ -71,30 +71,30 @@ class TestGeminiProcessStart:
     async def test_start_already_running_raises_error(self, mock_process):
         """Should raise error if already running."""
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
 
-            with pytest.raises(GeminiProcessError, match="already running"):
+            with pytest.raises(CLIProcessError, match="already running"):
                 await proc.start()
 
     @pytest.mark.asyncio
     async def test_start_cli_not_found_raises_error(self):
         """Should raise error if CLI executable not found."""
         with patch("asyncio.create_subprocess_exec", side_effect=FileNotFoundError):
-            proc = GeminiProcess(cli_path="/nonexistent/path")
+            proc = GeminiCLIProcess(cli_path="/nonexistent/path")
 
-            with pytest.raises(GeminiProcessError, match="not found"):
+            with pytest.raises(CLIProcessError, match="not found"):
                 await proc.start()
 
 
-class TestGeminiProcessStop:
+class TestGeminiCLIProcessStop:
     """Test stopping the Gemini CLI process."""
 
     @pytest.mark.asyncio
     async def test_stop_running_process(self, mock_process):
         """Should terminate running process."""
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
             await proc.stop()
 
@@ -104,7 +104,7 @@ class TestGeminiProcessStop:
     @pytest.mark.asyncio
     async def test_stop_not_running_does_nothing(self):
         """Should do nothing if not running."""
-        proc = GeminiProcess()
+        proc = GeminiCLIProcess()
         await proc.stop()  # Should not raise
 
     @pytest.mark.asyncio
@@ -112,21 +112,21 @@ class TestGeminiProcessStop:
         """Should wait for process to terminate."""
         mock_process.wait = AsyncMock()
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
             await proc.stop(timeout=5)
 
             mock_process.wait.assert_called_once()
 
 
-class TestGeminiProcessSendPrompt:
+class TestGeminiCLIProcessSendPrompt:
     """Test sending prompts to the process."""
 
     @pytest.mark.asyncio
     async def test_send_prompt_success(self, mock_process):
         """Should write prompt to stdin."""
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
             await proc.send_prompt("Hello, Gemini!")
 
@@ -138,13 +138,13 @@ class TestGeminiProcessSendPrompt:
     @pytest.mark.asyncio
     async def test_send_prompt_not_running_raises_error(self):
         """Should raise error if process not running."""
-        proc = GeminiProcess()
+        proc = GeminiCLIProcess()
 
-        with pytest.raises(GeminiProcessError, match="not running"):
+        with pytest.raises(CLIProcessError, match="not running"):
             await proc.send_prompt("Hello")
 
 
-class TestGeminiProcessRunPromptStream:
+class TestGeminiCLIProcessRunPromptStream:
     """Test non-interactive per-request prompt execution."""
 
     @pytest.mark.asyncio
@@ -163,7 +163,7 @@ class TestGeminiProcessRunPromptStream:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
-            proc = GeminiProcess(cli_path="/fake/gemini.js")
+            proc = GeminiCLIProcess(cli_path="/fake/gemini.js")
             events = []
             async for event in proc.run_prompt_stream("Hello"):
                 events.append(event)
@@ -194,7 +194,7 @@ class TestGeminiProcessRunPromptStream:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess(cli_path="/fake/gemini.js")
+            proc = GeminiCLIProcess(cli_path="/fake/gemini.js")
             events = []
             async for event in proc.run_prompt_stream("Hello"):
                 events.append(event)
@@ -212,13 +212,13 @@ class TestGeminiProcessRunPromptStream:
         mock_process.returncode = 1
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess(cli_path="/fake/gemini.js")
-            with pytest.raises(GeminiProcessError, match="boom"):
+            proc = GeminiCLIProcess(cli_path="/fake/gemini.js")
+            with pytest.raises(CLIProcessError, match="boom"):
                 async for _ in proc.run_prompt_stream("Hello"):
                     pass
 
 
-class TestGeminiProcessReadEvents:
+class TestGeminiCLIProcessReadEvents:
     """Test reading events from the process."""
 
     @pytest.mark.asyncio
@@ -235,7 +235,7 @@ class TestGeminiProcessReadEvents:
         )
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
 
             events_list = []
@@ -262,7 +262,7 @@ class TestGeminiProcessReadEvents:
         )
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            proc = GeminiProcess()
+            proc = GeminiCLIProcess()
             await proc.start()
 
             events_list = []
@@ -279,21 +279,21 @@ class TestGeminiProcessReadEvents:
     @pytest.mark.asyncio
     async def test_read_events_not_running_raises_error(self):
         """Should raise error if process not running."""
-        proc = GeminiProcess()
+        proc = GeminiCLIProcess()
 
-        with pytest.raises(GeminiProcessError, match="not running"):
+        with pytest.raises(CLIProcessError, match="not running"):
             async for _ in proc.read_events():
                 pass
 
 
-class TestGeminiProcessContextManager:
-    """Test using GeminiProcess as async context manager."""
+class TestGeminiCLIProcessContextManager:
+    """Test using GeminiCLIProcess as async context manager."""
 
     @pytest.mark.asyncio
     async def test_context_manager_starts_and_stops(self, mock_process):
         """Should start on enter and stop on exit."""
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            async with GeminiProcess() as proc:
+            async with GeminiCLIProcess() as proc:
                 assert proc.is_running
 
         # Should be stopped after exiting context

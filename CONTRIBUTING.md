@@ -66,7 +66,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/creds.json"
 
 ```
 gemini-cli-server/
-├── gemini_cli_server/      # Main package
+├── ai_cli_server/      # Main package
 │   ├── __init__.py
 │   ├── process.py          # Subprocess management
 │   ├── server.py           # FastAPI server
@@ -96,7 +96,7 @@ We use pytest for testing. Run the full test suite:
 pytest
 
 # Run with coverage
-pytest --cov=gemini_cli_server --cov-report=html
+pytest --cov=ai_cli_server --cov-report=html
 
 # Run specific test file
 pytest tests/test_process.py
@@ -123,26 +123,26 @@ We follow PEP 8 with some customizations:
 
 ```bash
 # Format code (install black first: pip install black)
-black gemini_cli_server/ tests/
+black ai_cli_server/ tests/
 
 # Check types (install mypy first: pip install mypy)
-mypy gemini_cli_server/
+mypy ai_cli_server/
 
 # Lint code (install ruff first: pip install ruff)
-ruff check gemini_cli_server/ tests/
+ruff check ai_cli_server/ tests/
 ```
 
 ### Running the Server Locally
 
 ```bash
 # Development mode with auto-reload
-uvicorn gemini_cli_server.server:app --reload
+uvicorn ai_cli_server.server:app --reload
 
 # Or using Python module
-python -m gemini_cli_server.server
+python -m ai_cli_server.server
 
 # Custom port
-uvicorn gemini_cli_server.server:app --port 9000
+uvicorn ai_cli_server.server:app --port 9000
 ```
 
 ### Testing Your Changes
@@ -163,7 +163,7 @@ uvicorn gemini_cli_server.server:app --port 9000
 
 2. **Implement the feature**:
    ```python
-   # gemini_cli_server/client.py
+   # ai_cli_server/client.py
    def my_new_feature(self):
        # Implementation
        pass
@@ -177,7 +177,7 @@ uvicorn gemini_cli_server.server:app --port 9000
 4. **Test manually**:
    ```bash
    # Start server
-   python -m gemini_cli_server.server
+   python -m ai_cli_server.server
    
    # In another terminal, test with real interaction
    python examples/simple_chat.py
@@ -194,7 +194,7 @@ uvicorn gemini_cli_server.server:app --port 9000
 
 2. Write tests in `tests/`
 
-3. Implement feature in `gemini_cli_server/`
+3. Implement feature in `ai_cli_server/`
 
 4. Add example in `examples/` if applicable
 
@@ -244,7 +244,7 @@ Test individual components in isolation:
 ```python
 import pytest
 from unittest.mock import Mock, AsyncMock
-from gemini_cli_server.process import GeminiProcess
+from ai_cli_server.process import GeminiProcess
 
 @pytest.mark.asyncio
 async def test_process_start():
@@ -264,7 +264,7 @@ Test real interactions (requires authentication):
 
 ```python
 import pytest
-from gemini_cli_server.client import GeminiClient
+from ai_cli_server.client import GeminiClient
 
 @pytest.mark.integration
 async def test_real_chat():
@@ -290,7 +290,7 @@ Aim for >90% coverage:
 
 ```bash
 # Generate coverage report
-pytest --cov=gemini_cli_server --cov-report=term --cov-report=html
+pytest --cov=ai_cli_server --cov-report=term --cov-report=html
 
 # View HTML report
 open htmlcov/index.html  # Mac/Linux
@@ -306,7 +306,7 @@ start htmlcov/index.html  # Windows
 # Run with debug logging
 import logging
 logging.basicConfig(level=logging.DEBUG)
-python -m gemini_cli_server.server
+python -m ai_cli_server.server
 ```
 
 ### Debug Tests

@@ -1,5 +1,5 @@
 """Example: Multi-turn conversation (OpenAI-compatible)."""
-from gemini_cli_server.client import OpenAICompatibleClient
+from ai_cli_server.client import OpenAICompatibleClient
 
 
 def stream_response(client, messages):
